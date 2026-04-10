@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero-card">
+        <div>
+          <p class="eyebrow">Full Stack Assignment</p>
+          <h1>Task Manager Dashboard</h1>
+          <p class="hero-copy">
+            Create tasks, update progress, edit titles, and keep everything in one tidy place.
+          </p>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-card">
+            <span class="stat-label">Total Tasks</span>
+            <strong id="totalCount">0</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Completed</span>
+            <strong id="completedCount">0</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Pending</span>
+            <strong id="pendingCount">0</strong>
+          </div>
+        </div>
+      </header>
+
+      <main class="content-grid">
+        <section class="panel create-panel">
+          <div class="panel-heading">
+            <h2>Add New Task</h2>
+            <p>Keep the payload small and valid.</p>
+          </div>
+          <form id="taskForm" class="task-form">
+            <label for="title">Task title</label>
+            <div class="input-row">
+              <input
+                id="title"
+                name="title"
+                type="text"
+                maxlength="120"
+                placeholder="Prepare API integration notes"
+                required
+              />
+              <button id="submitButton" type="submit">Add Task</button>
+            </div>
+            <p id="formError" class="helper error-text" hidden></p>
+          </form>
+
+          <div class="legend-box">
+            <h3>What this app supports</h3>
+            <ul>
+              <li>Create tasks with basic validation</li>
+              <li>Toggle completion status</li>
+              <li>Edit task titles inline</li>
+              <li>Delete tasks with instant refresh</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="panel-heading panel-heading-row">
+            <div>
+              <h2>Tasks</h2>
+              <p>Includes loading, empty, and error states.</p>
+            </div>
+            <div class="filter-group" role="tablist" aria-label="Task filters">
+              <button class="filter-button active" data-filter="all">All</button>
+              <button class="filter-button" data-filter="pending">Pending</button>
+              <button class="filter-button" data-filter="completed">Completed</button>
+            </div>
+          </div>
+
+          <div id="statusBanner" class="status-banner" hidden></div>
+          <div id="loadingState" class="state-card">Loading tasks...</div>
+          <div id="emptyState" class="state-card" hidden>No tasks found for this filter.</div>
+          <div id="taskList" class="task-list" hidden></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="taskTemplate">
+      <article class="task-card">
+        <div class="task-main">
+          <label class="checkbox-wrap">
+            <input class="toggle-task" type="checkbox" />
+            <span class="checkbox-ui"></span>
+          </label>
+          <div class="task-copy">
+            <div class="task-title-row">
+              <h3 class="task-title"></h3>
+              <span class="task-badge"></span>
+            </div>
+            <p class="task-meta"></p>
+          </div>
+        </div>
+        <div class="task-actions">
+          <button class="secondary-button edit-button" type="button">Edit</button>
+          <button class="danger-button delete-button" type="button">Delete</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

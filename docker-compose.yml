@@ -1,0 +1,10 @@
+services:
+  task-manager:
+    build: .
+    container_name: task-manager-assignment
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+    volumes:
+      - ./data:/app/data
