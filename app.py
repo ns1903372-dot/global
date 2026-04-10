@@ -45,6 +45,9 @@ class TaskManagerHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path in {"/", "/index.html"}:
+            self.serve_index()
+            return
         if parsed.path == "/health":
             self.send_json(HTTPStatus.OK, {"status": "ok"})
             return
@@ -179,6 +182,19 @@ class TaskManagerHandler(SimpleHTTPRequestHandler):
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def serve_index(self) -> None:
+        index_path = STATIC_DIR / "index.html"
+        if not index_path.exists():
+            self.send_json(HTTPStatus.NOT_FOUND, {"error": "index.html not found."})
+            return
+
+        body = index_path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
