@@ -10,7 +10,9 @@ from uuid import uuid4
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-DATA_DIR = BASE_DIR / "data"
+DEFAULT_DATA_DIR = BASE_DIR / "data"
+RENDER_DATA_DIR = Path("/tmp/task-manager-data")
+DATA_DIR = Path(os.environ.get("DATA_DIR", str(RENDER_DATA_DIR if os.environ.get("RENDER") == "true" else DEFAULT_DATA_DIR)))
 TASKS_FILE = DATA_DIR / "tasks.json"
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8000"))
@@ -44,113 +46,140 @@ class TaskManagerHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
     def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        if parsed.path in {"/", "/index.html"}:
-            self.serve_index()
-            return
-        if parsed.path == "/health":
-            self.send_json(HTTPStatus.OK, {"status": "ok"})
-            return
-        if parsed.path == "/tasks":
-            tasks = read_tasks()
-            params = parse_qs(parsed.query)
-            status = params.get("status", ["all"])[0]
-            if status == "completed":
-                tasks = [task for task in tasks if task["completed"]]
-            elif status == "pending":
-                tasks = [task for task in tasks if not task["completed"]]
-            self.send_json(HTTPStatus.OK, {"tasks": tasks})
-            return
-        super().do_GET()
-
-    def do_POST(self) -> None:
-        if self.path != "/tasks":
-            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found."})
-            return
-
-        payload = self.read_json_body()
-        if isinstance(payload, tuple):
-            status, body = payload
-            self.send_json(status, body)
-            return
-
-        title = str(payload.get("title", "")).strip()
-        if not title:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Title is required."})
-            return
-
-        task = {
-            "id": str(uuid4()),
-            "title": title,
-            "completed": False,
-            "createdAt": utc_now(),
-        }
-
-        tasks = read_tasks()
-        tasks.insert(0, task)
-        write_tasks(tasks)
-        self.send_json(HTTPStatus.CREATED, {"task": task, "message": "Task created."})
-
-    def do_PATCH(self) -> None:
-        task_id = self.extract_task_id()
-        if not task_id:
-            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found."})
-            return
-
-        payload = self.read_json_body()
-        if isinstance(payload, tuple):
-            status, body = payload
-            self.send_json(status, body)
-            return
-
-        allowed_keys = {"completed", "title"}
-        if not any(key in payload for key in allowed_keys):
-            self.send_json(
-                HTTPStatus.BAD_REQUEST,
-                {"error": "Provide at least one updatable field: title or completed."},
-            )
-            return
-
-        tasks = read_tasks()
-        task = next((item for item in tasks if item["id"] == task_id), None)
-        if task is None:
-            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Task not found."})
-            return
-
-        if "title" in payload:
-            title = str(payload.get("title", "")).strip()
-            if not title:
-                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Title cannot be empty."})
+        try:
+            parsed = urlparse(self.path)
+            if parsed.path in {"/", "/index.html"}:
+                self.serve_index()
                 return
-            task["title"] = title
-
-        if "completed" in payload:
-            completed = payload["completed"]
-            if not isinstance(completed, bool):
+            if parsed.path == "/health":
                 self.send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {"error": "Completed must be a boolean value."},
+                    HTTPStatus.OK,
+                    {"status": "ok", "dataFile": str(TASKS_FILE)},
                 )
                 return
-            task["completed"] = completed
+            if parsed.path == "/tasks":
+                tasks = read_tasks()
+                params = parse_qs(parsed.query)
+                status = params.get("status", ["all"])[0]
+                if status == "completed":
+                    tasks = [task for task in tasks if task["completed"]]
+                elif status == "pending":
+                    tasks = [task for task in tasks if not task["completed"]]
+                self.send_json(HTTPStatus.OK, {"tasks": tasks})
+                return
+            super().do_GET()
+        except OSError as exc:
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": f"Storage error: {exc}"},
+            )
 
-        write_tasks(tasks)
-        self.send_json(HTTPStatus.OK, {"task": task, "message": "Task updated."})
+    def do_POST(self) -> None:
+        try:
+            if self.path != "/tasks":
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found."})
+                return
+
+            payload = self.read_json_body()
+            if isinstance(payload, tuple):
+                status, body = payload
+                self.send_json(status, body)
+                return
+
+            title = str(payload.get("title", "")).strip()
+            if not title:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Title is required."})
+                return
+
+            task = {
+                "id": str(uuid4()),
+                "title": title,
+                "completed": False,
+                "createdAt": utc_now(),
+            }
+
+            tasks = read_tasks()
+            tasks.insert(0, task)
+            write_tasks(tasks)
+            self.send_json(HTTPStatus.CREATED, {"task": task, "message": "Task created."})
+        except OSError as exc:
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": f"Storage error: {exc}"},
+            )
+
+    def do_PATCH(self) -> None:
+        try:
+            task_id = self.extract_task_id()
+            if not task_id:
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found."})
+                return
+
+            payload = self.read_json_body()
+            if isinstance(payload, tuple):
+                status, body = payload
+                self.send_json(status, body)
+                return
+
+            allowed_keys = {"completed", "title"}
+            if not any(key in payload for key in allowed_keys):
+                self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "Provide at least one updatable field: title or completed."},
+                )
+                return
+
+            tasks = read_tasks()
+            task = next((item for item in tasks if item["id"] == task_id), None)
+            if task is None:
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Task not found."})
+                return
+
+            if "title" in payload:
+                title = str(payload.get("title", "")).strip()
+                if not title:
+                    self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Title cannot be empty."})
+                    return
+                task["title"] = title
+
+            if "completed" in payload:
+                completed = payload["completed"]
+                if not isinstance(completed, bool):
+                    self.send_json(
+                        HTTPStatus.BAD_REQUEST,
+                        {"error": "Completed must be a boolean value."},
+                    )
+                    return
+                task["completed"] = completed
+
+            write_tasks(tasks)
+            self.send_json(HTTPStatus.OK, {"task": task, "message": "Task updated."})
+        except OSError as exc:
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": f"Storage error: {exc}"},
+            )
 
     def do_DELETE(self) -> None:
-        task_id = self.extract_task_id()
-        if not task_id:
-            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found."})
-            return
+        try:
+            task_id = self.extract_task_id()
+            if not task_id:
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found."})
+                return
 
-        tasks = read_tasks()
-        updated_tasks = [task for task in tasks if task["id"] != task_id]
-        if len(updated_tasks) == len(tasks):
-            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Task not found."})
-            return
+            tasks = read_tasks()
+            updated_tasks = [task for task in tasks if task["id"] != task_id]
+            if len(updated_tasks) == len(tasks):
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Task not found."})
+                return
 
-        write_tasks(updated_tasks)
-        self.send_json(HTTPStatus.OK, {"message": "Task deleted."})
+            write_tasks(updated_tasks)
+            self.send_json(HTTPStatus.OK, {"message": "Task deleted."})
+        except OSError as exc:
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": f"Storage error: {exc}"},
+            )
 
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
