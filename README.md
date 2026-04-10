@@ -79,6 +79,31 @@ Or with Docker Compose:
 docker compose up --build
 ```
 
+## Deploy on Render
+
+This repo is Render-ready.
+
+Option 1: Deploy from the `Dockerfile`
+
+1. Log in to Render
+2. Click `New` -> `Web Service`
+3. Connect the GitHub repo `ns1903372-dot/global`
+4. Render should detect the `Dockerfile`
+5. Keep the health check path as `/health`
+6. Deploy the service
+
+Option 2: Use the included `render.yaml`
+
+1. In Render, choose `New` -> `Blueprint`
+2. Select this repository
+3. Render will read `render.yaml`
+4. Confirm and deploy
+
+Notes:
+
+- Render requires the app to bind to `0.0.0.0`, which this project now does.
+- The app reads the port from the `PORT` environment variable, which matches Render's requirements.
+
 ## API Endpoints
 
 - `GET /tasks` returns all tasks
